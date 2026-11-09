@@ -79,7 +79,7 @@
     }
     function buildSave(zone, opts) {
         opts = opts || {};
-        var dashUnlocked = zone >= 1; // 通关第 1 关（奶笑村）后解锁肚皮冲撞
+        var dashUnlocked = true; // GM：冲撞开局即解锁，第 1 关也能用
         var hero = makeHero(zone);
         var actors = [], crates = [], nextId = 1;
         if (zone === 6) {
