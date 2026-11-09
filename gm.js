@@ -345,8 +345,82 @@
 
     /* ---------- 面板 UI ---------- */
     var statusEl = null;
+    var gmPortrait = false; /* #gm-root 当前是否旋转了 90°（竖屏手机），拖拽换算坐标用 */
+    var BTN_POS_KEY = 'gm-btn-pos';
+    var BTN_DEFAULT = { right: 120, bottom: 14 };
     function setStatus(t) {
         if (statusEl) statusEl.textContent = t;
+    }
+    /* GM 按钮自由拖拽：按住拖动可放到任意位置，松手后位置存 localStorage，
+     * 下次打开还在原处。竖屏手机上容器旋转了 90°，屏幕位移要换算成容器内坐标：
+     * 顺时针 90° 时，屏幕 (dx,dy) 对应容器内 (dy,-dx)；没旋转时直接用 (dx,dy)。
+     * 移动小于 8px 算点按（打开面板），大于 8px 算拖拽（不触发点按）。 */
+    function makeBtnDraggable(btn) {
+        var root = document.querySelector('#gm-root');
+        var dragging = false, moved = false;
+        var startX = 0, startY = 0, startRight = 0, startBottom = 0;
+        function readPos() {
+            var r = parseFloat(btn.style.right) || BTN_DEFAULT.right;
+            var b = parseFloat(btn.style.bottom) || BTN_DEFAULT.bottom;
+            return { right: r, bottom: b };
+        }
+        function clampPos(right, bottom) {
+            var w = (root && root.clientWidth) || window.innerWidth;
+            var h = (root && root.clientHeight) || window.innerHeight;
+            return {
+                right: Math.max(0, Math.min(w - 52, right)),
+                bottom: Math.max(0, Math.min(h - 52, bottom))
+            };
+        }
+        function applyPos(p) {
+            var c = clampPos(p.right, p.bottom);
+            btn.style.right = c.right + 'px';
+            btn.style.bottom = c.bottom + 'px';
+            return c;
+        }
+        /* 恢复上次拖到的位置 */
+        try {
+            var saved = JSON.parse(localStorage.getItem(BTN_POS_KEY) || 'null');
+            if (saved && typeof saved.right === 'number' && typeof saved.bottom === 'number') applyPos(saved);
+        } catch (e) {}
+        btn.addEventListener('pointerdown', function (ev) {
+            dragging = true; moved = false;
+            startX = ev.clientX; startY = ev.clientY;
+            var p = readPos();
+            startRight = p.right; startBottom = p.bottom;
+            try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
+            ev.preventDefault();
+        });
+        btn.addEventListener('pointermove', function (ev) {
+            if (!dragging) return;
+            var sdx = ev.clientX - startX, sdy = ev.clientY - startY;
+            if (!moved && Math.abs(sdx) < 8 && Math.abs(sdy) < 8) return;
+            moved = true;
+            /* 屏幕位移 -> 容器内位移 */
+            var ldx = gmPortrait ? sdy : sdx;
+            var ldy = gmPortrait ? -sdx : sdy;
+            applyPos({ right: startRight - ldx, bottom: startBottom - ldy });
+        });
+        function endDrag(ev) {
+            if (!dragging) return;
+            dragging = false;
+            if (moved) {
+                var p = readPos();
+                try { localStorage.setItem(BTN_POS_KEY, JSON.stringify(p)); } catch (e) {}
+                /* 拖拽后不要触发点按（否则会误开面板） */
+                btn.setAttribute('data-dragged', '1');
+                setTimeout(function () { btn.removeAttribute('data-dragged'); }, 50);
+            }
+        }
+        btn.addEventListener('pointerup', endDrag);
+        btn.addEventListener('pointercancel', endDrag);
+    }
+    function resetBtnPos() {
+        var btn = document.querySelector('#gm-btn');
+        if (!btn) return;
+        btn.style.right = BTN_DEFAULT.right + 'px';
+        btn.style.bottom = BTN_DEFAULT.bottom + 'px';
+        try { localStorage.removeItem(BTN_POS_KEY); } catch (e) {}
     }
     function buildUI() {
         var css = [
@@ -354,9 +428,10 @@
              * 旋转 90°，让按钮和面板都横过来、落在游戏画面里（不再竖着挡屏）。 */
             '#gm-root{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99999;pointer-events:none;}',
             '#gm-root>*{pointer-events:auto;}',
-            '#gm-btn{position:absolute;right:14px;bottom:14px;width:52px;height:52px;border-radius:50%;',
+            '#gm-btn{position:absolute;right:120px;bottom:14px;width:52px;height:52px;border-radius:50%;',
             'background:rgba(20,16,40,.78);color:#ffd347;border:2px solid rgba(255,211,71,.65);',
-            'font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.5);}',
+            'font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.5);',
+            'touch-action:none;user-select:none;-webkit-user-select:none;}',
             '#gm-btn:active{transform:scale(.94)}',
             '#gm-panel{position:absolute;right:14px;bottom:76px;width:248px;max-height:70%;overflow:auto;',
             'background:rgba(18,14,36,.92);color:#eee;border:1px solid rgba(255,211,71,.4);border-radius:12px;',
@@ -406,11 +481,14 @@
             '<button id="gm-skill-toggle">🎯 技能选择 ▸ 点击展开</button>' +
             '<div id="gm-skills" style="display:none"></div>' +
             '<button id="gm-apply-skills" style="display:none">✅ 应用技能并重进</button>' +
+            '<button id="gm-reset-pos">📍 重置 GM 按钮位置</button>' +
             '<div class="gm-status" id="gm-status"></div>';
         root.appendChild(panel);
         statusEl = panel.querySelector('#gm-status');
 
+        makeBtnDraggable(btn);
         btn.addEventListener('click', function () {
+            if (btn.getAttribute('data-dragged')) return; /* 刚拖完，不算点按 */
             panel.classList.toggle('open');
             refreshStatus();
         });
@@ -437,6 +515,10 @@
             if (!open) renderSkills();
         });
         panel.querySelector('#gm-apply-skills').addEventListener('click', applySkills);
+        panel.querySelector('#gm-reset-pos').addEventListener('click', function () {
+            resetBtnPos();
+            refreshStatus();
+        });
         syncLayout();
         window.addEventListener('resize', syncLayout);
         window.addEventListener('orientationchange', syncLayout);
@@ -453,6 +535,7 @@
         var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
         var portraitTouch = false;
         try { portraitTouch = window.matchMedia('(pointer: coarse)').matches && h > w; } catch (e) {}
+        gmPortrait = portraitTouch;
         if (portraitTouch) {
             var gw = Math.min(h, w * 16 / 9);
             var gh = gw * 9 / 16;
