@@ -192,18 +192,26 @@
         { id: 'aftershock', name: '肚皮地震', desc: '冲撞结束引发冲击波' },
         { id: 'laugh', name: '笑到地动山摇', desc: '大笑范围扩大，伤害提升' }
     ];
+    /* 技能多选的暂存：游戏每 3 秒自动保存，会把 GM 刚写进 localStorage 的
+     * 技能选择覆盖回旧值；所以多选过程只认内存里的这份，不读 localStorage，
+     * 每次点选都以这份为准写回存档，点「应用」时再以这份为准重进。 */
+    var stagedSkills = null;
     function getOwnedSkills() {
+        if (stagedSkills) return stagedSkills.slice();
         var s = readSave();
         if (s && s.state && Array.isArray(s.state.upgrades)) return s.state.upgrades;
         return [];
     }
+    function stageSkills() {
+        if (!stagedSkills) stagedSkills = getOwnedSkills();
+        return stagedSkills;
+    }
     /* 点一下技能：有了就去掉，没了就加上；只改存档、不刷新，
-     * 可以连续多选，选完点「应用技能」再一次性重进生效。 */
+     * 可以连续多选，选完点「应用技能」再一次性重进生效。
+     * 注意：用内存里的暂存（stageSkills）做增减，不读 localStorage，
+     * 否则游戏 3 秒一次的自动保存会把前面选的覆盖掉。 */
     function toggleSkill(id) {
-        var s = readSave();
-        var zone = currentZone();
-        var state = (s && s.state) ? s.state : buildSave(zone, {});
-        var ups = Array.isArray(state.upgrades) ? state.upgrades.slice() : [];
+        var ups = stageSkills();
         var idx = ups.indexOf(id);
         var skill = null;
         SKILLS.forEach(function (k) { if (k.id === id) skill = k; });
@@ -214,26 +222,36 @@
             if (ups.length >= 9) { setStatus('技能最多 9 个，先去掉一个再加'); return; }
             ups.push(id);
         }
-        state.upgrades = ups;
+        stagedSkills = ups;
+        // 以暂存为准写回存档（state + checkpoint 同步）
+        var s = readSave();
+        var zone = currentZone();
+        var state = (s && s.state) ? s.state : buildSave(zone, {});
+        state.upgrades = ups.slice();
         if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
         writeSave(state);
         renderSkills();
         setStatus((idx >= 0 ? '已去掉：' : '已选上：') + name + '（共 ' + ups.length + ' 个），选完点下面「应用技能」重进生效');
     }
-    /* 技能选完后点这个：一次性重进游戏，让新技能生效 */
+    /* 技能选完后点这个：以暂存为准一次性重进游戏，让新技能生效 */
     function applySkills() {
+        var ups = stageSkills();
         var s = readSave();
         var zone = currentZone();
-        var n = getOwnedSkills().length;
-        if (s && s.state) {
-            // 确保待应用的存档也进 sessionStorage 备份（防游戏自动保存覆盖）
-            writeSave(s.state);
-        }
-        applyAndReload('技能已应用（共 ' + n + ' 个），第 ' + (zone + 1) + ' 章');
+        var state = (s && s.state) ? s.state : buildSave(zone, {});
+        state.upgrades = ups.slice();
+        if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
+        writeSave(state);
+        applyAndReload('技能已应用（共 ' + ups.length + ' 个），第 ' + (zone + 1) + ' 章');
     }
     /* ---------- GM 动作 ---------- */
     function jumpToZone(zone) {
-        writeSave(buildSave(zone, {}));
+        var ups = getOwnedSkills();
+        var state = buildSave(zone, {});
+        // 跳关也保留已选技能（包括刚在菜单里多选的暂存）
+        state.upgrades = ups.slice();
+        if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
+        writeSave(state);
         applyAndReload('已跳到第 ' + (zone + 1) + ' 章「' + ZONES[zone] + '」');
     }
     function nextZone() {
