@@ -347,7 +347,7 @@
     var statusEl = null;
     var gmPortrait = false; /* #gm-root 当前是否旋转了 90°（竖屏手机），拖拽换算坐标用 */
     var BTN_POS_KEY = 'gm-btn-pos';
-    var BTN_DEFAULT = { right: 120, bottom: 14 };
+    var BTN_DEFAULT = { right: 70, bottom: 90 };
     function setStatus(t) {
         if (statusEl) statusEl.textContent = t;
     }
@@ -436,7 +436,7 @@
              * 旋转 90°，让按钮和面板都横过来、落在游戏画面里（不再竖着挡屏）。 */
             '#gm-root{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99999;pointer-events:none;}',
             '#gm-root>*{pointer-events:auto;}',
-            '#gm-btn{position:absolute;right:120px;bottom:14px;width:52px;height:52px;border-radius:50%;',
+            '#gm-btn{position:absolute;right:70px;bottom:90px;width:52px;height:52px;border-radius:50%;',
             'background:rgba(20,16,40,.78);color:#ffd347;border:2px solid rgba(255,211,71,.65);',
             'font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.5);',
             'touch-action:none;user-select:none;-webkit-user-select:none;}',

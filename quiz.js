@@ -33,6 +33,8 @@
             '.quiz-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(10,6,18,.78);backdrop-filter:blur(3px);}',
             '.quiz-overlay.hidden{display:none;}',
             '.quiz-card{width:min(520px,92vw);background:#211a30;border:1px solid rgba(216,180,254,.35);border-radius:18px;padding:28px 24px 24px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.6);}',
+            /* 竖屏手机：选择题跟游戏一起横过来（游戏画面是横的，题目也要横着正对玩家） */
+            '.quiz-overlay.quiz-rotated .quiz-card{width:min(520px,86%);}',
             '.quiz-eyebrow{font-size:13px;letter-spacing:.35em;color:#d8b4fe;margin-bottom:10px;}',
             '.quiz-q{font-size:26px;line-height:1.4;font-weight:800;color:#fff;margin:0 0 6px;}',
             '.quiz-sub{font-size:14px;color:#c9b8e8;margin:0 0 20px;}',
@@ -46,6 +48,38 @@
             '.quiz-shake{animation:quiz-shake .45s ease;}'
         ].join('\n');
         document.head.appendChild(st);
+    }
+
+    /* 选择题跟游戏一起横过来：竖屏触屏手机上，游戏画面旋转 90° 变成横屏，
+     * 选择题也要同样旋转 90°、按同样的尺寸居中，否则题目竖着、跟游戏画面对不上。
+     * 横屏 / 电脑上不旋转，保持全屏遮罩。 */
+    function syncQuizLayout() {
+        if (!modal) return;
+        var w = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        var portraitTouch = false;
+        try { portraitTouch = window.matchMedia('(pointer: coarse)').matches && h > w; } catch (e) {}
+        if (portraitTouch) {
+            var gw = Math.min(h, w * 16 / 9);
+            var gh = gw * 9 / 16;
+            modal.classList.add('quiz-rotated');
+            modal.style.width = gw + 'px';
+            modal.style.height = gh + 'px';
+            modal.style.left = '50%';
+            modal.style.top = '50%';
+            modal.style.right = 'auto';
+            modal.style.bottom = 'auto';
+            modal.style.transform = 'translate(-50%, -50%) rotate(90deg)';
+        } else {
+            modal.classList.remove('quiz-rotated');
+            modal.style.width = '';
+            modal.style.height = '';
+            modal.style.left = '';
+            modal.style.top = '';
+            modal.style.right = '';
+            modal.style.bottom = '';
+            modal.style.transform = '';
+        }
     }
 
     function ensureModal() {
@@ -72,6 +106,10 @@
         });
         document.getElementById('quiz-a').addEventListener('click', onPickA);
         document.getElementById('quiz-b').addEventListener('click', onPickB);
+        syncQuizLayout();
+        window.addEventListener('resize', syncQuizLayout);
+        window.addEventListener('orientationchange', syncQuizLayout);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', syncQuizLayout);
     }
 
     function shake(msg) {
@@ -87,6 +125,7 @@
         pendingReward = cb;
         if (hintEl) hintEl.textContent = '';
         modal.classList.remove('hidden');
+        syncQuizLayout();
         if (quizTimer) clearTimeout(quizTimer);
         // 防呆：115 秒没人选就收起，游戏会在 120 秒超时后恢复按钮，玩家可再点重试
         quizTimer = setTimeout(function () {
