@@ -9,6 +9,7 @@
 
     var SAVE_KEY = 'naiwa:233-story:naiwa-run-v1';
     var AUTO_FLAG = 'gm-autocontinue';
+    var PENDING_KEY = 'gm-pending-save';
     var ZONES = ['奶笑村', '咕嘎小径', '刀盾山道', '风暴断桥', '禁声堡垒', '肃静大殿', '无声王座'];
 
     /* ---------- 存档读写 ---------- */
@@ -23,7 +24,19 @@
     }
     function writeSave(state) {
         var o = { schema: 1, savedAt: Date.now(), state: state };
-        localStorage.setItem(SAVE_KEY, JSON.stringify(o));
+        var s = JSON.stringify(o);
+        localStorage.setItem(SAVE_KEY, s);
+        // 再存一份到 sessionStorage：页面刷新时游戏可能在卸载前自动保存，
+        // 把 GM 改好的存档覆盖掉；下次加载时用这份再写回去，确保 GM 生效。
+        try { sessionStorage.setItem(PENDING_KEY, s); } catch (e) {}
+    }
+    /* 页面加载时（游戏读存档之前）把待应用的 GM 存档写回 localStorage */
+    function applyPendingSave() {
+        var p = null;
+        try { p = sessionStorage.getItem(PENDING_KEY); } catch (e) {}
+        if (!p) return;
+        try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+        try { localStorage.setItem(SAVE_KEY, p); } catch (e) {}
     }
 
     /* ---------- 构造一个合法的新存档（从头开始某一关） ----------
@@ -144,8 +157,9 @@
             if (btn && !btn.classList.contains('hidden') && !btn.disabled) {
                 clearInterval(timer);
                 btn.click();
-            } else if (tries > 60) {
+            } else if (tries > 120) {
                 clearInterval(timer);
+                setStatus('自动进入超时，请手动点「继续冒险」（不要点“准备好出发”，那会开新局覆盖 GM）。');
             }
         }, 500);
     }
@@ -195,6 +209,23 @@
         writeSave(state);
         applyAndReload('桃子 99、能量 100、血回满（第 ' + (zone + 1) + ' 章）');
     }
+    function unlimitedPeaches() {
+        var s = readSave();
+        var zone = currentZone();
+        var state;
+        if (s && s.state) {
+            state = s.state;
+            state.peaches = 999999;
+            if (state.checkpoint) state.checkpoint.peaches = 999999;
+            if (state.hero) state.hero.hp = state.hero.maxHp || 120;
+        } else {
+            state = buildSave(zone, {});
+            state.peaches = 999999;
+            state.checkpoint.peaches = 999999;
+        }
+        writeSave(state);
+        applyAndReload('黄桃罐头无限（999999 个，用不完）');
+    }
 
     /* ---------- 面板 UI ---------- */
     var statusEl = null;
@@ -243,6 +274,7 @@
             '<div class="gm-sec">作弊</div>' +
             '<button id="gm-god">🛡 无敌（不受伤害）</button>' +
             '<button id="gm-max">🍑 桃子 99 · 能量 100 · 回满血</button>' +
+            '<button id="gm-peaches">🍑 黄桃罐头无限（999999 个）</button>' +
             '<div class="gm-status" id="gm-status"></div>';
         document.body.appendChild(panel);
         statusEl = panel.querySelector('#gm-status');
@@ -262,6 +294,7 @@
         panel.querySelector('#gm-next').addEventListener('click', nextZone);
         panel.querySelector('#gm-god').addEventListener('click', godMode);
         panel.querySelector('#gm-max').addEventListener('click', maxStuff);
+        panel.querySelector('#gm-peaches').addEventListener('click', unlimitedPeaches);
         refreshStatus();
     }
     function refreshStatus() {
@@ -275,6 +308,7 @@
 
     /* ---------- 启动 ---------- */
     function init() {
+        applyPendingSave();
         autoContinue();
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', buildUI);
