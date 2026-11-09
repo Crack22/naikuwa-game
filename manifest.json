@@ -1,0 +1,11 @@
+{
+  "name": "勇者奶蛙传",
+  "short_name": "奶蛙传",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#171321",
+  "theme_color": "#171321"
+}
