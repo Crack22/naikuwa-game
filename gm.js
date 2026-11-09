@@ -177,6 +177,47 @@
         }, 500);
     }
 
+    /* ---------- 技能（过关后“选一招”池 S，存档白名单仅认这 9 个） ----------
+     * 注意：只能写这 9 个 id、不重复、总数 ≤9；池 $ 的 7 个和商店 id 写进去
+     * 整个存档会被校验拒掉。改 upgrades 时必须同步改 checkpoint.upgrades，
+     * 否则死一次、重闯本关就丢了（retry 会从 checkpoint 还原）。 */
+    var SKILLS = [
+        { id: 'auto', name: '自动奶球', desc: '自动找敌人发射奶球' },
+        { id: 'defense1', name: '肚皮护盾 · 闪耀', desc: '防御减伤 42%' },
+        { id: 'defense2', name: '肚皮护盾 · 辉煌', desc: '防御减伤 54%' },
+        { id: 'spread', name: '哈哈三连', desc: '普攻增加两道弹幕' },
+        { id: 'pierce', name: '笑穿全场', desc: '弹幕穿透两个敌人' },
+        { id: 'rapid', name: '根本停不下来', desc: '普攻速度 +30%' },
+        { id: 'pot', name: '护体锅盖', desc: '锅盖绕身，击退近身敌人' },
+        { id: 'aftershock', name: '肚皮地震', desc: '冲撞结束引发冲击波' },
+        { id: 'laugh', name: '笑到地动山摇', desc: '大笑范围扩大，伤害提升' }
+    ];
+    function getOwnedSkills() {
+        var s = readSave();
+        if (s && s.state && Array.isArray(s.state.upgrades)) return s.state.upgrades;
+        return [];
+    }
+    /* 点一下技能：有了就去掉，没了就加上；改完自动重进 */
+    function toggleSkill(id) {
+        var s = readSave();
+        var zone = currentZone();
+        var state = (s && s.state) ? s.state : buildSave(zone, {});
+        var ups = Array.isArray(state.upgrades) ? state.upgrades.slice() : [];
+        var idx = ups.indexOf(id);
+        var skill = null;
+        SKILLS.forEach(function (k) { if (k.id === id) skill = k; });
+        var name = skill ? skill.name : id;
+        if (idx >= 0) {
+            ups.splice(idx, 1);
+        } else {
+            if (ups.length >= 9) { setStatus('技能最多 9 个，先去掉一个再加'); return; }
+            ups.push(id);
+        }
+        state.upgrades = ups;
+        if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
+        writeSave(state);
+        applyAndReload((idx >= 0 ? '已去掉技能：' : '已获得技能：') + name + '（第 ' + (zone + 1) + ' 章）');
+    }
     /* ---------- GM 动作 ---------- */
     function jumpToZone(zone) {
         writeSave(buildSave(zone, {}));
@@ -306,6 +347,9 @@
             '<button id="gm-god">🛡 无敌</button>' +
             '<button id="gm-max">🍑 桃子 99 · 能量 100 · 回满血</button>' +
             '<button id="gm-peaches">🍑 黄桃罐头无限（999999 个）</button>' +
+            '<div class="gm-sec">技能（过关后选的那种，自由搭配）</div>' +
+            '<button id="gm-skill-toggle">🎯 技能选择 ▸ 点击展开</button>' +
+            '<div id="gm-skills" style="display:none"></div>' +
             '<div class="gm-status" id="gm-status"></div>';
         document.body.appendChild(panel);
         statusEl = panel.querySelector('#gm-status');
@@ -326,7 +370,30 @@
         panel.querySelector('#gm-god').addEventListener('click', godMode);
         panel.querySelector('#gm-max').addEventListener('click', maxStuff);
         panel.querySelector('#gm-peaches').addEventListener('click', unlimitedPeaches);
+        panel.querySelector('#gm-skill-toggle').addEventListener('click', function () {
+            var box = panel.querySelector('#gm-skills');
+            var open = box.style.display !== 'none';
+            box.style.display = open ? 'none' : 'block';
+            panel.querySelector('#gm-skill-toggle').textContent = open ? '🎯 技能选择 ▸ 点击展开' : '🎯 技能选择 ▾ 点击收起';
+            if (!open) renderSkills();
+        });
         refreshStatus();
+    }
+    /* 渲染技能菜单：已拥有的打 ✓，点一下切换 */
+    function renderSkills() {
+        var box = document.querySelector('#gm-skills');
+        if (!box) return;
+        var owned = getOwnedSkills();
+        box.innerHTML = SKILLS.map(function (k) {
+            var has = owned.indexOf(k.id) >= 0;
+            return '<button data-skill="' + k.id + '" style="' + (has ? 'border-color:#ffd34d;color:#ffd34d;' : '') + '">' +
+                (has ? '✓ ' : '○ ') + k.name + ' · ' + k.desc + '</button>';
+        }).join('');
+        box.querySelectorAll('[data-skill]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                toggleSkill(b.getAttribute('data-skill'));
+            });
+        });
     }
     function refreshStatus() {
         var s = readSave();
@@ -338,6 +405,9 @@
         // 无敌按钮显示当前开关状态
         var godBtn = document.querySelector('#gm-god');
         if (godBtn) godBtn.textContent = isGodOn() ? '🛡 无敌：开（点一下关掉）' : '🛡 无敌：关（点一下打开）';
+        // 技能菜单如果正开着，刷新已拥有状态
+        var box = document.querySelector('#gm-skills');
+        if (box && box.style.display !== 'none') renderSkills();
     }
 
     /* ---------- 启动 ---------- */
