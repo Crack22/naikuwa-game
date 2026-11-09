@@ -241,6 +241,19 @@
         if (z >= 6) { setStatus('已经是最后一章（无声王座）了'); return; }
         jumpToZone(z + 1);
     }
+    /* 卡在“选一招”画面时用：技能全满、没得选就会卡住。
+     * 直接进下一关，同时保留已选的技能（跳关会清空技能，这个不会）。 */
+    function skipUpgrade() {
+        var s = readSave();
+        var z = currentZone();
+        var ups = getOwnedSkills();
+        if (z >= 6) { setStatus('已经是最后一章，没有下一关了'); return; }
+        var state = buildSave(z + 1, {});
+        state.upgrades = ups.slice();
+        if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
+        writeSave(state);
+        applyAndReload('已跳过选技能，进第 ' + (z + 2) + ' 章「' + ZONES[z + 1] + '」（保留 ' + ups.length + ' 个技能）');
+    }
     function godMode() {
         var s = readSave();
         var zone = currentZone();
@@ -366,6 +379,7 @@
             '<h3>GM 面板</h3>' +
             '<div class="gm-sec">跳关（改完自动重进）</div>' + zoneBtns +
             '<button id="gm-next">下一关 ▶</button>' +
+            '<button id="gm-skip">⏭ 跳过选技能（卡住时用）</button>' +
             '<div class="gm-sec">作弊</div>' +
             '<button id="gm-god">🛡 无敌</button>' +
             '<button id="gm-max">🍑 桃子 99 · 能量 100 · 回满血</button>' +
@@ -391,6 +405,7 @@
             });
         });
         panel.querySelector('#gm-next').addEventListener('click', nextZone);
+        panel.querySelector('#gm-skip').addEventListener('click', skipUpgrade);
         panel.querySelector('#gm-god').addEventListener('click', godMode);
         panel.querySelector('#gm-max').addEventListener('click', maxStuff);
         panel.querySelector('#gm-peaches').addEventListener('click', unlimitedPeaches);
