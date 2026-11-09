@@ -306,11 +306,15 @@
     }
     function buildUI() {
         var css = [
-            '#gm-btn{position:fixed;right:14px;bottom:14px;z-index:99999;width:52px;height:52px;border-radius:50%;',
+            /* #gm-root 是 GM 的容器：平时就是全屏透明层；竖屏手机上跟游戏一样
+             * 旋转 90°，让按钮和面板都横过来、落在游戏画面里（不再竖着挡屏）。 */
+            '#gm-root{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99999;pointer-events:none;}',
+            '#gm-root>*{pointer-events:auto;}',
+            '#gm-btn{position:absolute;right:14px;bottom:14px;width:52px;height:52px;border-radius:50%;',
             'background:rgba(20,16,40,.78);color:#ffd347;border:2px solid rgba(255,211,71,.65);',
             'font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.5);}',
             '#gm-btn:active{transform:scale(.94)}',
-            '#gm-panel{position:fixed;right:14px;bottom:76px;z-index:99999;width:248px;max-height:70vh;overflow:auto;',
+            '#gm-panel{position:absolute;right:14px;bottom:76px;width:248px;max-height:70%;overflow:auto;',
             'background:rgba(18,14,36,.92);color:#eee;border:1px solid rgba(255,211,71,.4);border-radius:12px;',
             'padding:12px;font-size:14px;box-shadow:0 4px 24px rgba(0,0,0,.6);display:none;}',
             '#gm-panel.open{display:block}',
@@ -321,17 +325,23 @@
             'border-radius:8px;font-size:13px;cursor:pointer}',
             '#gm-panel button:active{background:rgba(255,211,71,.25)}',
             '#gm-panel .gm-status{margin-top:8px;font-size:12px;color:#aaa;line-height:1.5;word-break:break-all}',
-            '#gm-panel .gm-close{float:right;background:none;border:none;color:#888;font-size:16px;padding:0 4px;cursor:pointer}'
+            '#gm-panel .gm-close{float:right;background:none;border:none;color:#888;font-size:16px;padding:0 4px;cursor:pointer}',
+            /* 竖屏手机：面板放宽一点，按钮更好点 */
+            '@media (pointer:coarse) and (orientation:portrait){#gm-panel{width:min(300px,86vw);}}'
         ].join('');
         var st = document.createElement('style');
         st.textContent = css;
         document.head.appendChild(st);
 
+        var root = document.createElement('div');
+        root.id = 'gm-root';
+        document.body.appendChild(root);
+
         var btn = document.createElement('button');
         btn.id = 'gm-btn';
         btn.textContent = 'GM';
         btn.title = 'GM 面板';
-        document.body.appendChild(btn);
+        root.appendChild(btn);
 
         var panel = document.createElement('div');
         panel.id = 'gm-panel';
@@ -351,7 +361,7 @@
             '<button id="gm-skill-toggle">🎯 技能选择 ▸ 点击展开</button>' +
             '<div id="gm-skills" style="display:none"></div>' +
             '<div class="gm-status" id="gm-status"></div>';
-        document.body.appendChild(panel);
+        root.appendChild(panel);
         statusEl = panel.querySelector('#gm-status');
 
         btn.addEventListener('click', function () {
@@ -377,7 +387,37 @@
             panel.querySelector('#gm-skill-toggle').textContent = open ? '🎯 技能选择 ▸ 点击展开' : '🎯 技能选择 ▾ 点击收起';
             if (!open) renderSkills();
         });
+        syncLayout();
+        window.addEventListener('resize', syncLayout);
+        window.addEventListener('orientationchange', syncLayout);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', syncLayout);
         refreshStatus();
+    }
+    /* 跟游戏保持同一个横竖屏逻辑：触屏 + 竖屏时，游戏会把画面旋转 90°，
+     * GM 容器也按同样的尺寸居中旋转 90°，按钮和面板就横过来、落在游戏画面里。
+     * 横屏 / 电脑上不旋转，保持原来的全屏定位。 */
+    function syncLayout() {
+        var root = document.querySelector('#gm-root');
+        if (!root) return;
+        var w = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        var portraitTouch = false;
+        try { portraitTouch = window.matchMedia('(pointer: coarse)').matches && h > w; } catch (e) {}
+        if (portraitTouch) {
+            var gw = Math.min(h, w * 16 / 9);
+            var gh = gw * 9 / 16;
+            root.style.width = gw + 'px';
+            root.style.height = gh + 'px';
+            root.style.left = '50%';
+            root.style.top = '50%';
+            root.style.transform = 'translate(-50%, -50%) rotate(90deg)';
+        } else {
+            root.style.width = '100vw';
+            root.style.height = '100vh';
+            root.style.left = '0';
+            root.style.top = '0';
+            root.style.transform = '';
+        }
     }
     /* 渲染技能菜单：已拥有的打 ✓，点一下切换 */
     function renderSkills() {
