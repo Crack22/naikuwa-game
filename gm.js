@@ -354,11 +354,12 @@
     /* GM 按钮自由拖拽：按住拖动可放到任意位置，松手后位置存 localStorage，
      * 下次打开还在原处。竖屏手机上容器旋转了 90°，屏幕位移要换算成容器内坐标：
      * 顺时针 90° 时，屏幕 (dx,dy) 对应容器内 (dy,-dx)；没旋转时直接用 (dx,dy)。
-     * 移动小于 8px 算点按（打开面板），大于 8px 算拖拽（不触发点按）。 */
+     * 手指一动按钮就跟（不设启动阈值，松手时总位移小于 8px 才算点按）。 */
     function makeBtnDraggable(btn) {
         var root = document.querySelector('#gm-root');
-        var dragging = false, moved = false;
+        var dragging = false;
         var startX = 0, startY = 0, startRight = 0, startBottom = 0;
+        var lastX = 0, lastY = 0;
         function readPos() {
             var r = parseFloat(btn.style.right) || BTN_DEFAULT.right;
             var b = parseFloat(btn.style.bottom) || BTN_DEFAULT.bottom;
@@ -384,8 +385,9 @@
             if (saved && typeof saved.right === 'number' && typeof saved.bottom === 'number') applyPos(saved);
         } catch (e) {}
         btn.addEventListener('pointerdown', function (ev) {
-            dragging = true; moved = false;
+            dragging = true;
             startX = ev.clientX; startY = ev.clientY;
+            lastX = ev.clientX; lastY = ev.clientY;
             var p = readPos();
             startRight = p.right; startBottom = p.bottom;
             try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
@@ -393,9 +395,9 @@
         });
         btn.addEventListener('pointermove', function (ev) {
             if (!dragging) return;
+            /* 手指一动就跟，不等阈值 */
             var sdx = ev.clientX - startX, sdy = ev.clientY - startY;
-            if (!moved && Math.abs(sdx) < 8 && Math.abs(sdy) < 8) return;
-            moved = true;
+            lastX = ev.clientX; lastY = ev.clientY;
             /* 屏幕位移 -> 容器内位移 */
             var ldx = gmPortrait ? sdy : sdx;
             var ldy = gmPortrait ? -sdx : sdy;
@@ -404,12 +406,18 @@
         function endDrag(ev) {
             if (!dragging) return;
             dragging = false;
+            /* 松手时看总位移：小于 8px 算点按（打开面板），大于等于 8px 算拖拽 */
+            var totalDx = lastX - startX, totalDy = lastY - startY;
+            var moved = Math.abs(totalDx) >= 8 || Math.abs(totalDy) >= 8;
             if (moved) {
                 var p = readPos();
                 try { localStorage.setItem(BTN_POS_KEY, JSON.stringify(p)); } catch (e) {}
                 /* 拖拽后不要触发点按（否则会误开面板） */
                 btn.setAttribute('data-dragged', '1');
                 setTimeout(function () { btn.removeAttribute('data-dragged'); }, 50);
+            } else {
+                /* 没拖动过，位置不动（手指轻点时不小心挪了 1-2px 也复位） */
+                applyPos({ right: startRight, bottom: startBottom });
             }
         }
         btn.addEventListener('pointerup', endDrag);
