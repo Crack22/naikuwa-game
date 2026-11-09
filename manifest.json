@@ -1,11 +1,28 @@
 {
-  "name": "勇者奶蛙传",
-  "short_name": "奶蛙传",
+  "name": "奶蛙勇者",
+  "short_name": "奶蛙勇者",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#171321",
-  "theme_color": "#171321"
+  "theme_color": "#171321",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "./apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
 }
