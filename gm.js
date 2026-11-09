@@ -178,17 +178,35 @@
         var s = readSave();
         var zone = currentZone();
         var state;
-        if (s && s.state) {
-            // 沿用现有存档，只改无敌和血量，保留当前进度
-            state = s.state;
-            state.invulnerable = 999999;
-            if (state.hero) state.hero.hp = state.hero.maxHp || 120;
-            if (state.phase && state.phase !== 'playing') state.phase = 'playing';
+        if (isGodOn()) {
+            // 关掉无敌：把无敌倒计时清零，马上就能正常受伤
+            if (s && s.state) {
+                state = s.state;
+                state.invulnerable = 0;
+            } else {
+                state = buildSave(zone, {});
+                state.invulnerable = 0;
+            }
+            writeSave(state);
+            applyAndReload('无敌已关（第 ' + (zone + 1) + ' 章），现在会正常受伤');
         } else {
-            state = buildSave(zone, { god: true });
+            // 打开无敌
+            if (s && s.state) {
+                state = s.state;
+                state.invulnerable = 999999;
+                if (state.hero) state.hero.hp = state.hero.maxHp || 120;
+                if (state.phase && state.phase !== 'playing') state.phase = 'playing';
+            } else {
+                state = buildSave(zone, { god: true });
+            }
+            writeSave(state);
+            applyAndReload('无敌已开（约 11 天内不受伤害），第 ' + (zone + 1) + ' 章');
         }
-        writeSave(state);
-        applyAndReload('无敌已开（约 11 天内不受伤害），第 ' + (zone + 1) + ' 章');
+    }
+    /* 无敌是否正开着：存档里 invulnerable 很大就是开着 */
+    function isGodOn() {
+        var s = readSave();
+        return !!(s && s.state && typeof s.state.invulnerable === 'number' && s.state.invulnerable > 10000);
     }
     function maxStuff() {
         var s = readSave();
@@ -272,7 +290,7 @@
             '<div class="gm-sec">跳关（改完自动重进）</div>' + zoneBtns +
             '<button id="gm-next">下一关 ▶</button>' +
             '<div class="gm-sec">作弊</div>' +
-            '<button id="gm-god">🛡 无敌（不受伤害）</button>' +
+            '<button id="gm-god">🛡 无敌</button>' +
             '<button id="gm-max">🍑 桃子 99 · 能量 100 · 回满血</button>' +
             '<button id="gm-peaches">🍑 黄桃罐头无限（999999 个）</button>' +
             '<div class="gm-status" id="gm-status"></div>';
@@ -304,6 +322,9 @@
             (s ? '已有存档（可继续冒险）' : '暂无存档：先点开始玩一下，或直接用跳关建一个') +
             '\n改存档后会自动刷新并点「继续冒险」。';
         setStatus(t);
+        // 无敌按钮显示当前开关状态
+        var godBtn = document.querySelector('#gm-god');
+        if (godBtn) godBtn.textContent = isGodOn() ? '🛡 无敌：开（点一下关掉）' : '🛡 无敌：关（点一下打开）';
     }
 
     /* ---------- 启动 ---------- */
