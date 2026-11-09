@@ -30,13 +30,20 @@
         // 把 GM 改好的存档覆盖掉；下次加载时用这份再写回去，确保 GM 生效。
         try { sessionStorage.setItem(PENDING_KEY, s); } catch (e) {}
     }
-    /* 页面加载时（游戏读存档之前）把待应用的 GM 存档写回 localStorage */
+    /* 页面加载时（游戏读存档之前）把待应用的 GM 存档写回 localStorage。
+     * 注意：这里故意不删 sessionStorage 里的备份——游戏在标题画面等待期间
+     * 仍可能自动保存一次，把 GM 存档又盖掉；要留着备份，在点「继续冒险」
+     * 之前再写一次，直到游戏真正进关才清理。 */
     function applyPendingSave() {
         var p = null;
         try { p = sessionStorage.getItem(PENDING_KEY); } catch (e) {}
-        if (!p) return;
-        try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+        if (!p) return false;
         try { localStorage.setItem(SAVE_KEY, p); } catch (e) {}
+        return true;
+    }
+    /* 游戏已经进关、读完 GM 存档后，才可以删掉备份 */
+    function clearPendingSave() {
+        try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
     }
 
     /* ---------- 构造一个合法的新存档（从头开始某一关） ----------
@@ -153,10 +160,16 @@
         var tries = 0;
         var timer = setInterval(function () {
             tries++;
+            // 等待期间游戏可能自动保存，把 GM 存档盖掉；每轮都重新写回一次
+            applyPendingSave();
             var btn = document.querySelector('#continue-button');
             if (btn && !btn.classList.contains('hidden') && !btn.disabled) {
                 clearInterval(timer);
+                // 点「继续冒险」前最后一刻再写一次，确保游戏读到的是 GM 存档
+                applyPendingSave();
                 btn.click();
+                // 游戏已进关、读完存档，3 秒后清理备份（避免以后正常刷新被旧备份覆盖）
+                setTimeout(clearPendingSave, 3000);
             } else if (tries > 120) {
                 clearInterval(timer);
                 setStatus('自动进入超时，请手动点「继续冒险」（不要点“准备好出发”，那会开新局覆盖 GM）。');
