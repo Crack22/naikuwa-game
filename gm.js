@@ -197,7 +197,8 @@
         if (s && s.state && Array.isArray(s.state.upgrades)) return s.state.upgrades;
         return [];
     }
-    /* 点一下技能：有了就去掉，没了就加上；改完自动重进 */
+    /* 点一下技能：有了就去掉，没了就加上；只改存档、不刷新，
+     * 可以连续多选，选完点「应用技能」再一次性重进生效。 */
     function toggleSkill(id) {
         var s = readSave();
         var zone = currentZone();
@@ -216,7 +217,19 @@
         state.upgrades = ups;
         if (state.checkpoint) state.checkpoint.upgrades = ups.slice();
         writeSave(state);
-        applyAndReload((idx >= 0 ? '已去掉技能：' : '已获得技能：') + name + '（第 ' + (zone + 1) + ' 章）');
+        renderSkills();
+        setStatus((idx >= 0 ? '已去掉：' : '已选上：') + name + '（共 ' + ups.length + ' 个），选完点下面「应用技能」重进生效');
+    }
+    /* 技能选完后点这个：一次性重进游戏，让新技能生效 */
+    function applySkills() {
+        var s = readSave();
+        var zone = currentZone();
+        var n = getOwnedSkills().length;
+        if (s && s.state) {
+            // 确保待应用的存档也进 sessionStorage 备份（防游戏自动保存覆盖）
+            writeSave(s.state);
+        }
+        applyAndReload('技能已应用（共 ' + n + ' 个），第 ' + (zone + 1) + ' 章');
     }
     /* ---------- GM 动作 ---------- */
     function jumpToZone(zone) {
@@ -360,6 +373,7 @@
             '<div class="gm-sec">技能（过关后选的那种，自由搭配）</div>' +
             '<button id="gm-skill-toggle">🎯 技能选择 ▸ 点击展开</button>' +
             '<div id="gm-skills" style="display:none"></div>' +
+            '<button id="gm-apply-skills" style="display:none">✅ 应用技能并重进</button>' +
             '<div class="gm-status" id="gm-status"></div>';
         root.appendChild(panel);
         statusEl = panel.querySelector('#gm-status');
@@ -382,11 +396,14 @@
         panel.querySelector('#gm-peaches').addEventListener('click', unlimitedPeaches);
         panel.querySelector('#gm-skill-toggle').addEventListener('click', function () {
             var box = panel.querySelector('#gm-skills');
+            var applyBtn = panel.querySelector('#gm-apply-skills');
             var open = box.style.display !== 'none';
             box.style.display = open ? 'none' : 'block';
+            applyBtn.style.display = open ? 'none' : 'block';
             panel.querySelector('#gm-skill-toggle').textContent = open ? '🎯 技能选择 ▸ 点击展开' : '🎯 技能选择 ▾ 点击收起';
             if (!open) renderSkills();
         });
+        panel.querySelector('#gm-apply-skills').addEventListener('click', applySkills);
         syncLayout();
         window.addEventListener('resize', syncLayout);
         window.addEventListener('orientationchange', syncLayout);
